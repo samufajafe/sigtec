@@ -156,16 +156,26 @@ Volúmenes por nodo: datos en volumen docker; `./wal_archive/<nodo>` y `./backup
 - INSTEAD OF: si `campus_id` viene NULL usar `sig.fn_campus_local()`; si no coincide con `sig.fn_campus_local()` → `RAISE EXCEPTION`. Normalizar con `sig.fn_a_srid_institucional()`. Escribir en `sig.fn_esquema_local()`. En UPDATE/DELETE validar el `campus_id` de OLD. Función `SECURITY DEFINER`.
 - Permisos de vistas: SELECT a `sigtec_lectura`; INSERT/UPDATE/DELETE a `sigtec_editor`.
 - En el central: nada de vistas editables (no tiene esquema propio).
+- **Lo que necesita QGIS de las vistas (el complemento ya las carga así):**
+  - Mismo nombre (`capas.<capa_codigo>`) y mismos nombres de columna que las tablas físicas, porque los estilos y formularios se aplican por nombre de campo.
+  - INSERT: QGIS puede mandar `id` en NULL. El trigger debe asignar `nextval('<esquema local>.seq_id_global')` si viene NULL, y terminar con `RETURN NEW` con el `id` ya asignado, porque QGIS usa `INSERT … RETURNING` para conocer el id nuevo.
+  - QGIS manda **todas** las columnas, incluidas `area_m2`/`longitud_m` (generadas) y `creado_en`/`actualizado_*`. El trigger no debe copiarlas a la tabla física: insertar un valor en una columna generada da error.
+  - El complemento ya pone `campus_id` = campus del usuario por defecto, pero el trigger debe validarlo igual.
+- **Vistas temporales:** mientras tanto existen `capas.*` de solo lectura creadas por `plugin/dev/vistas_temporales.sql` (con COMMENT `TEMPORAL…`). Antes de crear las reales: `./plugin/dev/aplicar_vistas_temporales.sh --quitar`. Ese script solo borra las que tienen ese comentario.
+- **Estilos (no tocar):** la publicación `pub_estilos` (central, solo `public.layer_styles`) y las suscripciones `sub_<campus>_estilos` son del módulo de estilos. Las publicaciones `FOR TABLES IN SCHEMA <campus>` no incluyen `public`, así que no se cruzan.
+- **Capacidad del central:** `max_wal_senders` y `max_replication_slots` = 20. Las 5 suscripciones de estilos usan 5. En la copia inicial, cada suscripción del Nivel 2 abre además hasta 4 *walsenders* temporales. Si se crean las 5 a la vez, aparecen errores transitorios `number of requested standby connections exceeds max_wal_senders` que se resuelven solos con los reintentos. Para evitarlos, crear las suscripciones de una en una.
 
 ### Samuel — complemento PyQGIS
 - Login: conectar a `localhost:5440/sigtec` como `sigtec_login`, llamar `auth.fn_login`.
 - Con la fila devuelta, conectar a `host:puerto/base_datos` con el usuario y clave escritos por el usuario.
 - Capas a cargar: `SELECT capa_codigo, nombre FROM sig.capa ORDER BY orden` → vista `capas.<capa_codigo>`, clave `id`, geometría `geom`, SRID 5367.
-- Estilos: `public.layer_styles` en el central (QGIS la crea al guardar un estilo en la BD). Coordinar con Gabo su publicación hacia los campus.
+- Estilos: `public.layer_styles` (estructura exacta de QGIS) en los 6 nodos. Se publican en el central con versiones (`'<capa> vN'` + `useasdefault`) y llegan a los campus por `pub_estilos` → `sub_<campus>_estilos`. Es independiente de la replicación de datos.
 - Formularios: usar la tabla de valores permitidos del punto 4.2 para *Value Map*; `area_m2`, `longitud_m`, `creado_en`, `actualizado_*` deben ir como solo lectura.
+- Implementación, versiones de estilos, instalación y pruebas: [03_plugin_y_estilos.md](03_plugin_y_estilos.md).
 
 ### Justin — respaldos y transacciones
 - Archivado WAL ya activo: `./wal_archive/<nodo>`. Carpeta de respaldos: `./backups/<nodo>` (montada en `/backups`).
 - `pg_basebackup -h pg-X -U replicador -D /backups/base_… -X stream` funciona (pg_hba permite `replication`).
 - 2PC listo (`max_prepared_transactions=20`). Caso natural: `scripts/crear_usuario.sh` toca dos nodos (central y campus) → volverlo atómico con `PREPARE TRANSACTION` / `COMMIT PREPARED`.
 - Ojo en la prueba de recuperación: al restaurar un nodo con PITR, los slots de replicación de ese nodo vuelven al estado del respaldo; documentar cómo se resincroniza (re-crear la suscripción con `copy_data = true` desde el central).
+- Lo mismo aplica a `sub_<campus>_estilos`. Para resincronizarla: `DROP SUBSCRIPTION`, `TRUNCATE public.layer_styles` en el campus (TRUNCATE no activa el trigger que bloquea las escrituras locales) y volver a correr `./scripts/configurar_estilos.sh`.

@@ -6,7 +6,7 @@ Equipo: Samuel · Gabo · Justin — ver [división del trabajo](docs/00_divisio
 
 ## Requisitos
 - Docker Desktop (o Docker Engine + compose v2)
-- QGIS 3.28+ (LTR recomendado)
+- QGIS 3.34+ o 4.x (el complemento funciona con ambos)
 - En Windows: clonar con `git config core.autocrlf input` (los `.sh` deben quedar en LF).
 
 ## Levantar los 6 nodos
@@ -16,7 +16,21 @@ docker compose up -d
 docker compose ps             # esperar a que los 6 estén "healthy"
 ./scripts/verificar_nodos.sh
 ```
-La primera vez cada nodo ejecuta `initdb/00_sigtec_init.sh`, que crea extensiones, catálogos, las 8 capas en los 5 esquemas, roles, usuarios demo y datos de ejemplo.
+La primera vez cada nodo ejecuta `initdb/00_sigtec_init.sh`, que crea extensiones, catálogos, las 8 capas en los 5 esquemas, roles, usuarios demo, datos de ejemplo y la tabla de estilos `layer_styles`.
+
+Después, una sola vez (los dos scripts se pueden repetir sin problema):
+```bash
+./scripts/configurar_estilos.sh                        # suscripciones de estilos central -> campus
+./scripts/publicar_estilos.sh -m "Versión inicial"     # estilos de plugin/sigtec/estilos al central
+./plugin/dev/aplicar_vistas_temporales.sh              # SOLO hasta que existan las vistas reales de sql/vistas/
+```
+
+## Complemento QGIS
+```powershell
+powershell -ExecutionPolicy Bypass -File plugin\instalar_windows.ps1   # al perfil de QGIS (QGIS3 y/o QGIS4)
+powershell -ExecutionPolicy Bypass -File plugin\empaquetar_zip.ps1     # dist\sigtec-<versión>.zip
+```
+Activar *SIG-TEC* en *Complementos › Administrar e instalar complementos*. Detalle en [docs/03_plugin_y_estilos.md](docs/03_plugin_y_estilos.md).
 
 > Los scripts de init **solo corren con el volumen vacío**. Si cambian algo en `sql/`, reiniciar desde cero con:
 > `docker compose down -v && rm -rf wal_archive backups && docker compose up -d`
@@ -57,9 +71,14 @@ initdb/00_sigtec_init.sh  orquesta la inicialización según NODO_TIPO / CAMPUS_
 sql/comun/                extensiones, catálogos, modelo de capas, roles (todos los nodos)
 sql/central/              esquemas réplica, autenticación, usuarios demo
 sql/campus/               esquema propio + réplicas, usuarios del nodo, datos ejemplo
+sql/estilos/              (Samuel) layer_styles, versiones de estilos, publicación pub_estilos
 sql/replicacion/          (Gabo) publicaciones y suscripciones
 sql/vistas/               (Gabo) vistas capas.* + INSTEAD OF
 plugin/                   (Samuel) complemento PyQGIS
+  sigtec/                   el complemento (estilos/*.qml de respaldo, config.json)
+  dev/                      vistas TEMPORALES, generadores de estilos/icono, pruebas sin interfaz
+  *.ps1                     instalar en el perfil de QGIS / generar el .zip
+scripts/                  verificar_nodos, crear_usuario, configurar_estilos, publicar_estilos
 scripts/respaldos/        (Justin) pg_dump, pg_basebackup, PITR
 docs/                     arquitectura y documentación
 ```

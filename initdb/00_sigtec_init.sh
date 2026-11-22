@@ -41,6 +41,15 @@ else
                -f "$SQL_DIR/campus/12_datos_ejemplo.sql"
 fi
 
+# ---------- Estilos compartidos (layer_styles) ----------
+"${PSQL[@]}" -f "$SQL_DIR/estilos/01_layer_styles.sql"
+"${PSQL[@]}" -f "$SQL_DIR/estilos/02_versiones.sql"
+if [[ "$NODO_TIPO" == "central" ]]; then
+  "${PSQL[@]}" -f "$SQL_DIR/estilos/03_publicacion_central.sql"
+fi
+# Las suscripciones sub_<campus>_estilos necesitan el central encendido:
+# se crean después con scripts/configurar_estilos.sh.
+
 # Marca de init completo: la usa el healthcheck de docker-compose.yml.
 touch "$PGDATA/sigtec_init_ok"
 
