@@ -1,0 +1,11 @@
+{
+  "_comentario": "Conexion al nodo central para autenticar (rol sigtec_login, solo puede ejecutar auth.fn_login). Las credenciales del usuario NO van aqui.",
+  "central": {
+    "host": "localhost",
+    "puerto": 5440,
+    "base_datos": "sigtec",
+    "usuario": "sigtec_login",
+    "clave": "login2026"
+  },
+  "margen_zoom_m": 250
+}
