@@ -96,8 +96,9 @@ def _enum(clase, enum, miembro, alterno=None):
 
 def _tipo_wkb(tipo_geom):
     nombres = {"POINT": "Point", "LINESTRING": "LineString", "POLYGON": "Polygon"}
+    # Qgis.WkbType existe desde QGIS 3.30 (y en 4.x); antes el enum era QgsWkbTypes.Type.
     try:
-        from qgis.core import QgsWkbTypes  # solo existe el viejo en 3.x
+        from qgis.core import QgsWkbTypes
     except ImportError:  # pragma: no cover
         QgsWkbTypes = None
     return _enum(Qgis, "WkbType", nombres[tipo_geom], QgsWkbTypes)
