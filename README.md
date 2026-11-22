@@ -18,11 +18,12 @@ docker compose ps             # esperar a que los 6 estén "healthy"
 ```
 La primera vez cada nodo ejecuta `initdb/00_sigtec_init.sh`, que crea extensiones, catálogos, las 8 capas en los 5 esquemas, roles, usuarios demo, datos de ejemplo y la tabla de estilos `layer_styles`.
 
-Después, una sola vez (los dos scripts se pueden repetir sin problema):
+Después, una sola vez (los scripts se pueden repetir sin problema):
 ```bash
 ./scripts/configurar_estilos.sh                        # suscripciones de estilos central -> campus
 ./scripts/publicar_estilos.sh -m "Versión inicial"     # estilos de plugin/sigtec/estilos al central
-./plugin/dev/aplicar_vistas_temporales.sh              # SOLO hasta que existan las vistas reales de sql/vistas/
+./scripts/configurar_replicacion.sh                    # replicación Nivel 1 + Nivel 2 y vistas capas.*
+./scripts/pruebas/probar_replicacion.sh --rapido       # opcional: comprueba replicación, vistas y permisos
 ```
 
 ## Complemento QGIS
@@ -34,6 +35,7 @@ Activar *SIG-TEC* en *Complementos › Administrar e instalar complementos*. Det
 
 > Los scripts de init **solo corren con el volumen vacío**. Si cambian algo en `sql/`, reiniciar desde cero con:
 > `docker compose down -v && rm -rf wal_archive backups && docker compose up -d`
+> Después hay que volver a correr los scripts de configuración de la sección anterior.
 >
 > `down -v` no borra `./wal_archive` (es carpeta del host). Si se deja, el clúster nuevo genera WAL con los
 > mismos nombres (`000000010000000000000001`…), el `archive_command` se niega a sobrescribirlos y el archivado
@@ -78,9 +80,11 @@ plugin/                   (Samuel) complemento PyQGIS
   sigtec/                   el complemento (estilos/*.qml de respaldo, config.json)
   dev/                      vistas TEMPORALES, generadores de estilos/icono, pruebas sin interfaz
   *.ps1                     instalar en el perfil de QGIS / generar el .zip
-scripts/                  verificar_nodos, crear_usuario, configurar_estilos, publicar_estilos
+scripts/                  verificar_nodos, crear_usuario, configurar_estilos, publicar_estilos,
+                          configurar_replicacion
+scripts/pruebas/          (Gabo) pruebas de replicación, vistas y permisos
 scripts/respaldos/        (Justin) pg_dump, pg_basebackup, PITR
 docs/                     arquitectura y documentación
 ```
 
-La arquitectura completa y los contratos entre módulos están en [docs/01_arquitectura.md](docs/01_arquitectura.md).
+La arquitectura completa y los contratos entre módulos están en [docs/01_arquitectura.md](docs/01_arquitectura.md). La replicación y las vistas se explican en [docs/02_replicacion_vistas.md](docs/02_replicacion_vistas.md).
