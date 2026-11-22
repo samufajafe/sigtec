@@ -34,6 +34,13 @@ BEGIN
     INTO v_consulta
   FROM sig.campus;
 
+  -- Las vistas temporales del complemento (COMMENT 'TEMPORAL...') declaran
+  -- geom con tipo y SRID, y CREATE OR REPLACE no puede cambiar ese tipo.
+  IF coalesce(obj_description(to_regclass(format('capas.%I', p_capa)), 'pg_class'), '')
+     LIKE 'TEMPORAL%' THEN
+    EXECUTE format('DROP VIEW capas.%I', p_capa);
+  END IF;
+
   EXECUTE format('CREATE OR REPLACE VIEW capas.%I AS %s', p_capa, v_consulta);
   EXECUTE format('COMMENT ON VIEW capas.%I IS %L', p_capa,
                  'Capa integrada de los 5 campus. Clave: id. Geometría: geom (SRID 5367)');
