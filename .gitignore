@@ -1,0 +1,7 @@
+.env
+wal_archive/
+backups/
+__pycache__/
+*.pyc
+*.qgs~
+.DS_Store

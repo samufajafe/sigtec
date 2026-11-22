@@ -1,0 +1,186 @@
+# =====================================================================
+# SIG-TEC - Infraestructura distribuida (1 nodo central + 5 nodos campus)
+# Responsable: Samuel (Arquitectura e infraestructura)
+#
+#   Contenedor     Rol                         Puerto host
+#   pg-central     Autenticación/coordinación   5440
+#   pg-cartago     Campus 1 - Cartago           5441
+#   pg-sanjose     Campus 2 - San José          5442
+#   pg-sancarlos   Campus 3 - San Carlos        5443
+#   pg-alajuela    Campus 4 - Alajuela          5444
+#   pg-limon       Campus 5 - Limón             5445
+#
+# Dentro de la red docker los nodos se ven por nombre (pg-central:5432 ...).
+# QGIS (en la máquina host) se conecta por localhost:544X.
+# =====================================================================
+
+x-pg-base: &pg-base
+  image: postgis/postgis:16-3.4
+  restart: unless-stopped
+  networks: [sigtec_net]
+  # Las carpetas montadas (wal_archive, backups) se crean como root en el host;
+  # se les da dueño "postgres" antes de arrancar el entrypoint oficial.
+  entrypoint:
+    - bash
+    - -c
+    - |
+      mkdir -p /wal_archive /backups
+      chown -R postgres:postgres /wal_archive /backups
+      exec docker-entrypoint.sh "$$@"
+    - --
+  # Parámetros necesarios para TODO el proyecto (se dejan listos desde el inicio):
+  #  - wal_level=logical           -> replicación lógica (Gabo)
+  #  - archive_mode/archive_command-> archivado WAL para PITR (Justin)
+  #  - max_prepared_transactions   -> transacciones distribuidas 2PC (Justin)
+  command: >
+    postgres
+    -c wal_level=logical
+    -c max_wal_senders=20
+    -c max_replication_slots=20
+    -c max_logical_replication_workers=12
+    -c max_sync_workers_per_subscription=4
+    -c max_worker_processes=24
+    -c max_prepared_transactions=20
+    -c archive_mode=on
+    -c archive_command='test ! -f /wal_archive/%f && cp %p /wal_archive/%f.tmp && mv /wal_archive/%f.tmp /wal_archive/%f'
+    -c archive_timeout=300
+    -c hba_file=/etc/postgresql/pg_hba.conf
+    -c timezone=America/Costa_Rica
+    -c log_timezone=America/Costa_Rica
+  # archive_command: copia a %f.tmp y renombra. Si la copia falla a medias (pasa en
+  # bind mounts de Windows bajo carga: "cp: Cannot allocate memory"), no queda un
+  # archivo parcial con el nombre final que haga fallar "test ! -f" para siempre.
+  #
+  # healthcheck: "healthy" solo cuando el servidor definitivo escucha por TCP (el
+  # servidor temporal del init solo usa socket) y el init de SIG-TEC terminó bien
+  # (marca escrita al final de initdb/00_sigtec_init.sh). Si el init falla, el
+  # contenedor queda "unhealthy" en vez de arrancar con la BD a medias.
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB} && test -f $${PGDATA}/sigtec_init_ok"]
+    interval: 5s
+    timeout: 5s
+    retries: 20
+
+x-campus-env: &campus-env
+  POSTGRES_USER: ${PG_SUPERUSER:-postgres}
+  POSTGRES_PASSWORD: ${PG_SUPERPASS:-postgres}
+  POSTGRES_DB: ${SIGTEC_DB:-sigtec}
+  SIGTEC_REPL_PASSWORD: ${SIGTEC_REPL_PASSWORD:-replica2026}
+  SIGTEC_DEMO_PASSWORD: ${SIGTEC_DEMO_PASSWORD:-Tec2026!}
+  NODO_TIPO: campus
+
+services:
+  pg-central:
+    <<: *pg-base
+    container_name: pg-central
+    hostname: pg-central
+    environment:
+      POSTGRES_USER: ${PG_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${PG_SUPERPASS:-postgres}
+      POSTGRES_DB: ${SIGTEC_DB:-sigtec}
+      SIGTEC_REPL_PASSWORD: ${SIGTEC_REPL_PASSWORD:-replica2026}
+      SIGTEC_DEMO_PASSWORD: ${SIGTEC_DEMO_PASSWORD:-Tec2026!}
+      SIGTEC_LOGIN_PASSWORD: ${SIGTEC_LOGIN_PASSWORD:-login2026}
+      SIGTEC_HOST_CLIENTE: ${SIGTEC_HOST_CLIENTE:-localhost}
+      NODO_TIPO: central
+      CAMPUS_ID: 0
+    ports: ["5440:5432"]
+    volumes:
+      - central_data:/var/lib/postgresql/data
+      - ./wal_archive/central:/wal_archive
+      - ./backups/central:/backups
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./sql:/sigtec/sql:ro
+      - ./initdb/00_sigtec_init.sh:/docker-entrypoint-initdb.d/20_sigtec_init.sh:ro
+
+  pg-cartago:
+    <<: *pg-base
+    container_name: pg-cartago
+    hostname: pg-cartago
+    environment:
+      <<: *campus-env
+      CAMPUS_ID: 1
+    ports: ["5441:5432"]
+    volumes:
+      - cartago_data:/var/lib/postgresql/data
+      - ./wal_archive/cartago:/wal_archive
+      - ./backups/cartago:/backups
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./sql:/sigtec/sql:ro
+      - ./initdb/00_sigtec_init.sh:/docker-entrypoint-initdb.d/20_sigtec_init.sh:ro
+
+  pg-sanjose:
+    <<: *pg-base
+    container_name: pg-sanjose
+    hostname: pg-sanjose
+    environment:
+      <<: *campus-env
+      CAMPUS_ID: 2
+    ports: ["5442:5432"]
+    volumes:
+      - sanjose_data:/var/lib/postgresql/data
+      - ./wal_archive/sanjose:/wal_archive
+      - ./backups/sanjose:/backups
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./sql:/sigtec/sql:ro
+      - ./initdb/00_sigtec_init.sh:/docker-entrypoint-initdb.d/20_sigtec_init.sh:ro
+
+  pg-sancarlos:
+    <<: *pg-base
+    container_name: pg-sancarlos
+    hostname: pg-sancarlos
+    environment:
+      <<: *campus-env
+      CAMPUS_ID: 3
+    ports: ["5443:5432"]
+    volumes:
+      - sancarlos_data:/var/lib/postgresql/data
+      - ./wal_archive/sancarlos:/wal_archive
+      - ./backups/sancarlos:/backups
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./sql:/sigtec/sql:ro
+      - ./initdb/00_sigtec_init.sh:/docker-entrypoint-initdb.d/20_sigtec_init.sh:ro
+
+  pg-alajuela:
+    <<: *pg-base
+    container_name: pg-alajuela
+    hostname: pg-alajuela
+    environment:
+      <<: *campus-env
+      CAMPUS_ID: 4
+    ports: ["5444:5432"]
+    volumes:
+      - alajuela_data:/var/lib/postgresql/data
+      - ./wal_archive/alajuela:/wal_archive
+      - ./backups/alajuela:/backups
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./sql:/sigtec/sql:ro
+      - ./initdb/00_sigtec_init.sh:/docker-entrypoint-initdb.d/20_sigtec_init.sh:ro
+
+  pg-limon:
+    <<: *pg-base
+    container_name: pg-limon
+    hostname: pg-limon
+    environment:
+      <<: *campus-env
+      CAMPUS_ID: 5
+    ports: ["5445:5432"]
+    volumes:
+      - limon_data:/var/lib/postgresql/data
+      - ./wal_archive/limon:/wal_archive
+      - ./backups/limon:/backups
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./sql:/sigtec/sql:ro
+      - ./initdb/00_sigtec_init.sh:/docker-entrypoint-initdb.d/20_sigtec_init.sh:ro
+
+networks:
+  sigtec_net:
+    name: sigtec_net
+
+volumes:
+  central_data:
+  cartago_data:
+  sanjose_data:
+  sancarlos_data:
+  alajuela_data:
+  limon_data:
