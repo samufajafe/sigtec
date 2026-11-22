@@ -12,7 +12,11 @@
 | Scripts | `scripts/configurar_estilos.sh`, `scripts/publicar_estilos.sh`, `plugin/*.ps1` | Distribución de estilos, publicación de versiones, instalación y empaquetado |
 | Herramientas de desarrollo | `plugin/dev/` | Vistas **temporales**, generadores (estilos, icono) y pruebas sin interfaz |
 
-Compatibilidad: **QGIS 3.34+ (Qt5) y QGIS 4.x (Qt6)**. Se probó con QGIS 4.2.3 (OSGeo4W). Solo usa la API de QGIS (`qgis.PyQt`, `QgsProviderRegistry…createConnection().executeSql()`), sin psycopg2.
+Compatibilidad: **QGIS 3.34+ (Qt5) y QGIS 4.x (Qt6)** (`metadata.txt`: `qgisMinimumVersion=3.34`, `qgisMaximumVersion=4.99`, `supportsQt6=True`).
+- **QGIS 4.2.3 (OSGeo4W):** probado completo.
+- **Qt5:** el código Qt del complemento se verificó contra PyQt5 5.15.11 (enums con nombre completo, `exec()`, `QAction` en `QtWidgets`).
+- **API de QGIS:** `Qgis.WkbType` y `Qgis.MessageLevel` tienen respaldo a los nombres antiguos.
+- **Pendiente:** probarlo dentro de un QGIS 3.x real. Solo usa la API de QGIS (`qgis.PyQt`, `QgsProviderRegistry…createConnection().executeSql()`), sin psycopg2.
 
 ## 2. Flujo de ingreso
 

@@ -30,16 +30,22 @@ x-pg-base: &pg-base
     - --
   # Parámetros necesarios para TODO el proyecto (se dejan listos desde el inicio):
   #  - wal_level=logical           -> replicación lógica (Gabo)
+  #  - max_wal_senders / max_replication_slots = 40 -> peor caso en el central:
+  #      Nivel 2 (5 suscripciones + hasta 4 sync c/u = 25) + estilos (5 + 5 sync)
+  #      + pg_basebackup -X stream (2) = 37
+  #  - max_logical_replication_workers = 30 -> el central como suscriptor del
+  #      Nivel 1: 5 aplicadores + hasta 4 sync c/u = 25
+  #  - max_worker_processes = 40   -> 30 lógicos + lanzador + 8 paralelos
   #  - archive_mode/archive_command-> archivado WAL para PITR (Justin)
   #  - max_prepared_transactions   -> transacciones distribuidas 2PC (Justin)
   command: >
     postgres
     -c wal_level=logical
-    -c max_wal_senders=20
-    -c max_replication_slots=20
-    -c max_logical_replication_workers=12
+    -c max_wal_senders=40
+    -c max_replication_slots=40
+    -c max_logical_replication_workers=30
     -c max_sync_workers_per_subscription=4
-    -c max_worker_processes=24
+    -c max_worker_processes=40
     -c max_prepared_transactions=20
     -c archive_mode=on
     -c archive_command='test ! -f /wal_archive/%f && cp %p /wal_archive/%f.tmp && mv /wal_archive/%f.tmp /wal_archive/%f'

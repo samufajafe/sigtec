@@ -129,8 +129,8 @@ Devuelve 1 fila (acceso concedido) con: `usuario_id, username, nombre_completo, 
 | Parámetro | Valor | Usado por |
 |---|---|---|
 | `wal_level` | logical | replicación lógica |
-| `max_wal_senders` / `max_replication_slots` | 20 / 20 | suscripciones + basebackup |
-| `max_logical_replication_workers` / `max_worker_processes` | 12 / 24 | aplicadores de suscripciones |
+| `max_wal_senders` / `max_replication_slots` | 40 / 40 | suscripciones (Nivel 2 + estilos, con su copia inicial simultánea) + basebackup |
+| `max_logical_replication_workers` / `max_worker_processes` | 30 / 40 | aplicadores y sincronizadores de suscripciones (`max_sync_workers_per_subscription` = 4) |
 | `max_prepared_transactions` | 20 | transacciones distribuidas 2PC |
 | `archive_mode` / `archive_command` | on / copia a `/wal_archive` | PITR |
 | `timezone` | America/Costa_Rica | auditoría |
@@ -163,7 +163,7 @@ Volúmenes por nodo: datos en volumen docker; `./wal_archive/<nodo>` y `./backup
   - El complemento ya pone `campus_id` = campus del usuario por defecto, pero el trigger debe validarlo igual.
 - **Vistas temporales:** mientras tanto existen `capas.*` de solo lectura creadas por `plugin/dev/vistas_temporales.sql` (con COMMENT `TEMPORAL…`). Antes de crear las reales: `./plugin/dev/aplicar_vistas_temporales.sh --quitar`. Ese script solo borra las que tienen ese comentario.
 - **Estilos (no tocar):** la publicación `pub_estilos` (central, solo `public.layer_styles`) y las suscripciones `sub_<campus>_estilos` son del módulo de estilos. Las publicaciones `FOR TABLES IN SCHEMA <campus>` no incluyen `public`, así que no se cruzan.
-- **Capacidad del central:** `max_wal_senders` y `max_replication_slots` = 20. Las 5 suscripciones de estilos usan 5. En la copia inicial, cada suscripción del Nivel 2 abre además hasta 4 *walsenders* temporales. Si se crean las 5 a la vez, aparecen errores transitorios `number of requested standby connections exceeds max_wal_senders` que se resuelven solos con los reintentos. Para evitarlos, crear las suscripciones de una en una.
+- **Capacidad:** los límites de la sección 7 están pensados para crear todas las suscripciones a la vez, incluida la copia inicial simultánea del Nivel 2 junto con las de estilos.
 
 ### Samuel — complemento PyQGIS
 - Login: conectar a `localhost:5440/sigtec` como `sigtec_login`, llamar `auth.fn_login`.
