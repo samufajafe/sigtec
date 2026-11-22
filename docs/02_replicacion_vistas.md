@@ -43,7 +43,7 @@ flowchart TB
 
 Cada suscripción crea en su publicador un *slot* lógico con su mismo nombre. El central aloja los cinco slots `sub_<campus>_global`, y cada campus aloja su slot `sub_central_<campus>`.
 
-El Nivel 1 se monta por completo antes que el Nivel 2, de modo que la copia inicial hacia los campus ya contenga los datos de todos. Las suscripciones se crean una por una porque, en paralelo, las copias iniciales del Nivel 2 podrían superar el límite de 20 slots del central.
+El Nivel 1 se monta por completo antes que el Nivel 2, de modo que la copia inicial hacia los campus ya contenga los datos de todos. Las suscripciones se crean una por una para limitar la carga de la copia inicial sobre el central y para identificar con claridad cuál falla, si ocurre un error.
 
 ### 2.1 Por qué no hay ciclos
 
@@ -79,7 +79,7 @@ Todo se administra con un solo script:
 ./scripts/configurar_replicacion.sh remontar   # desmonta y vuelve a montar
 ```
 
-El script es idempotente. `desmontar` nunca modifica el esquema propio de un campus. Salida real de una nueva ejecución sobre un sistema ya montado:
+El script es idempotente. `desmontar` nunca modifica el esquema propio de un campus ni los objetos del módulo de estilos (`pub_estilos`, `sub_<campus>_estilos`), lo cual se verificó con una suscripción de estilos activa. Salida real de una nueva ejecución sobre un sistema ya montado:
 
 ```text
 >> Nivel 1: publicaciones en los campus
@@ -130,7 +130,9 @@ Cada vista `capas.<capa>` es un `UNION ALL` de los cinco esquemas. Se generan a 
 
 Todas incluyen además `id`, `campus_id`, `creado_en`, `actualizado_en`, `actualizado_por` y `geom`. La clave es `id`, única en todo el sistema gracias a los rangos por campus.
 
-**Decisión sobre `geom`.** La vista expone `geom` como `geometry`, sin tipo ni SRID declarados. Si conservara `geometry(Polygon,5367)`, PostgreSQL rechazaría una geometría en 4326 antes de ejecutar el disparador que debe transformarla. Los datos almacenados permanecen en SRID 5367, y `EXPLAIN` confirma que las consultas espaciales siguen usando el índice GiST de cada tabla. Como consecuencia, QGIS debe recibir el SRID y el tipo de geometría en la URI de la capa.
+**Decisión sobre `geom`.** La vista expone `geom` como `geometry`, sin tipo ni SRID declarados. Si conservara `geometry(Polygon,5367)`, PostgreSQL rechazaría una geometría en 4326 antes de ejecutar el disparador que debe transformarla. Los datos almacenados permanecen en SRID 5367, y `EXPLAIN` confirma que las consultas espaciales siguen usando el índice GiST de cada tabla. Como consecuencia, QGIS debe recibir el SRID y el tipo de geometría en la URI de la capa, y el complemento ya los envía de forma explícita.
+
+Si un nodo todavía tiene las vistas temporales del complemento (comentario `TEMPORAL...`), el script las reemplaza por las definitivas. Las vistas definitivas no son sobrescritas si luego se vuelve a ejecutar el script temporal.
 
 ### 4.1 Disparadores INSTEAD OF
 
@@ -242,6 +244,8 @@ Un respaldo físico no incluye los slots de replicación. Al restaurar un nodo a
 - **Central:** no se pierden datos de capas, porque los dueños son los campus.
 - **Campus:** los cambios de ese campus posteriores al punto de recuperación desaparecen de todos los nodos, porque el campus restaurado vuelve a ser la fuente de verdad.
 
+`remontar` no resincroniza `sub_<campus>_estilos`. Si se restaura un nodo, esa suscripción se recupera con el procedimiento del módulo de estilos, descrito en la sección 8 de `docs/01_arquitectura.md`.
+
 La pérdida de un slot y la recuperación con `remontar` se probaron de forma real. El ensayo con un PITR completo queda pendiente de integrarse con el módulo de respaldos.
 
 ## 7. Limitaciones conocidas
@@ -249,3 +253,4 @@ La pérdida de un slot y la recuperación con `remontar` se probaron de forma re
 - La replicación es asíncrona: un cambio tarda un instante en aparecer en los demás nodos.
 - Si un suscriptor permanece detenido, su publicador retiene WAL hasta que vuelva, porque el slot sigue activo en el catálogo. Una caída prolongada debe vigilarse o resolverse eliminando la suscripción.
 - Los cambios de estructura (DDL) no se replican; deben aplicarse con scripts en todos los nodos.
+- Las vistas y los disparadores se verificaron con `psql` y con los usuarios reales. La edición desde QGIS queda pendiente de la prueba integrada con el complemento.
