@@ -3,12 +3,13 @@
 # SIG-TEC - Monta, desmonta y revisa la replicación lógica de dos niveles.
 #
 # Uso: ./scripts/configurar_replicacion.sh [modo]
-#   montar     (por defecto) Nivel 1 + Nivel 2, espera la copia inicial
+#   montar     (por defecto) Nivel 1 + Nivel 2 + vistas capas.*
 #   nivel1     solo campus -> central
 #   nivel2     solo central -> campus (exige Nivel 1 completo)
+#   vistas     crea o actualiza las vistas capas.* y sus disparadores
 #   desmontar  elimina suscripciones, publicaciones y copias réplica
 #   remontar   desmontar + montar
-#   estado     muestra publicaciones, suscripciones, slots y conteos
+#   estado     muestra publicaciones, suscripciones y slots
 #
 # Es idempotente: volver a ejecutar "montar" no duplica nada.
 # "desmontar" nunca borra el esquema propio de un campus.
@@ -94,6 +95,15 @@ montar_nivel2() {
   done
 }
 
+crear_vistas() {
+  local n
+  info "Vistas capas.* y disparadores INSTEAD OF"
+  for n in "${NODOS[@]}"; do
+    ejecutar "$n" ../vistas/10_fn_tg_capa_editar.sql
+    ejecutar "$n" ../vistas/20_crear_vistas.sql
+  done
+}
+
 desmontar() {
   local c n
   info "Eliminando suscripciones del Nivel 2"
@@ -153,12 +163,13 @@ estado() {
 
 modo=${1:-montar}
 case "$modo" in
-  montar)    verificar_nodos_arriba; montar_nivel1; montar_nivel2; verificar_convergencia ;;
+  montar)    verificar_nodos_arriba; montar_nivel1; montar_nivel2; verificar_convergencia; crear_vistas ;;
   nivel1)    verificar_nodos_arriba; montar_nivel1 ;;
   nivel2)    verificar_nodos_arriba; montar_nivel2; verificar_convergencia ;;
+  vistas)    verificar_nodos_arriba; crear_vistas ;;
   desmontar) verificar_nodos_arriba; desmontar ;;
-  remontar)  verificar_nodos_arriba; desmontar; montar_nivel1; montar_nivel2; verificar_convergencia ;;
+  remontar)  verificar_nodos_arriba; desmontar; montar_nivel1; montar_nivel2; verificar_convergencia; crear_vistas ;;
   estado)    estado ;;
-  *)         sed -n '5,11p' "$0"; exit 1 ;;
+  *)         sed -n '5,12p' "$0"; exit 1 ;;
 esac
 info "Listo ($modo)."
