@@ -157,7 +157,7 @@ Volúmenes por nodo: datos en volumen docker; `./wal_archive/<nodo>` y `./backup
 - Permisos de vistas: SELECT a `sigtec_lectura`; INSERT/UPDATE/DELETE a `sigtec_editor`.
 - En el central: nada de vistas editables (no tiene esquema propio).
 
-### Andrés — complemento PyQGIS
+### Samuel — complemento PyQGIS
 - Login: conectar a `localhost:5440/sigtec` como `sigtec_login`, llamar `auth.fn_login`.
 - Con la fila devuelta, conectar a `host:puerto/base_datos` con el usuario y clave escritos por el usuario.
 - Capas a cargar: `SELECT capa_codigo, nombre FROM sig.capa ORDER BY orden` → vista `capas.<capa_codigo>`, clave `id`, geometría `geom`, SRID 5367.

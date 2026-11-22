@@ -2,7 +2,7 @@
 
 Proyecto 3 · Bases de Datos II · TEC San Carlos · Entrega: lunes 30/11/2026 08:00
 
-Equipo: Samuel · Gabo · Andrés · Justin — ver [división del trabajo](docs/00_division_trabajo.md).
+Equipo: Samuel · Gabo · Justin — ver [división del trabajo](docs/00_division_trabajo.md).
 
 ## Requisitos
 - Docker Desktop (o Docker Engine + compose v2)
@@ -59,7 +59,7 @@ sql/central/              esquemas réplica, autenticación, usuarios demo
 sql/campus/               esquema propio + réplicas, usuarios del nodo, datos ejemplo
 sql/replicacion/          (Gabo) publicaciones y suscripciones
 sql/vistas/               (Gabo) vistas capas.* + INSTEAD OF
-plugin/                   (Andrés) complemento PyQGIS
+plugin/                   (Samuel) complemento PyQGIS
 scripts/respaldos/        (Justin) pg_dump, pg_basebackup, PITR
 docs/                     arquitectura y documentación
 ```
