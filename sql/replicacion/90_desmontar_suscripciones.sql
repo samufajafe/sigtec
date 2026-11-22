@@ -1,19 +1,26 @@
 -- =====================================================================
--- SIG-TEC | Desmontaje - SUSCRIPCIONES de este nodo
+-- SIG-TEC | Desmontaje - UNA suscripción de datos de este nodo
+-- Variables psql: :sub (nombre), :slot_existe (1 si el slot sigue en el
+-- publicador, 0 si no). Las pasa scripts/configurar_replicacion.sh.
 --
--- Se desasocia el slot antes del DROP. Un DROP SUBSCRIPTION normal intenta
--- borrar el slot en el publicador y FALLA si ya no existe, que es lo que
--- ocurre al restaurar un nodo con PITR (los respaldos no incluyen slots).
--- Los slots que queden en los publicadores los elimina
--- 91_desmontar_publicaciones.sql. Solo toca suscripciones de SIG-TEC.
+-- Con slot: DROP normal, que también limpia los slots de copia inicial.
+-- Sin slot: se desasocia antes del DROP, porque un DROP normal FALLA si el
+-- slot ya no existe. Es lo que ocurre al restaurar un nodo con PITR.
+--
+-- No toca las suscripciones de estilos (sub_<campus>_estilos).
 -- =====================================================================
 \set ON_ERROR_STOP on
 
+\if :slot_existe
+SELECT format('DROP SUBSCRIPTION %I', subname)
+FROM pg_subscription
+WHERE subname = :'sub'
+\gexec
+\else
 SELECT format('ALTER SUBSCRIPTION %I DISABLE', subname),
        format('ALTER SUBSCRIPTION %I SET (slot_name = NONE)', subname),
        format('DROP SUBSCRIPTION %I', subname)
 FROM pg_subscription
-WHERE subdbid = (SELECT oid FROM pg_database WHERE datname = current_database())
-  AND (subname LIKE 'sub\_central\_%' OR subname LIKE 'sub\_%\_global')
-ORDER BY subname
+WHERE subname = :'sub'
 \gexec
+\endif

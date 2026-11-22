@@ -86,8 +86,8 @@ montar_nivel2() {
   done
   info "Nivel 2: publicaciones globales en el central"
   ejecutar central 20_nivel2_publicaciones_central.sql
-  # Una por una: la copia inicial en paralelo agotaría max_replication_slots
-  # (5 slots fijos + hasta 4 temporales por suscripción, con límite de 20).
+  # Una por una: limita la carga de la copia inicial sobre el central y, si
+  # algo falla, deja claro qué suscripción fue.
   info "Nivel 2: suscripciones en los campus"
   for c in "${CAMPUS[@]}"; do
     ejecutar "$c" 21_nivel2_suscripcion_campus.sql
@@ -104,12 +104,19 @@ crear_vistas() {
   done
 }
 
+# Revisa si el slot sigue en el publicador para elegir la forma de borrar.
+eliminar_suscripcion() {
+  local nodo=$1 sub=$2 publicador=$3 slot
+  slot=$(consulta "$publicador" "SELECT count(*) FROM pg_replication_slots WHERE slot_name = '$sub'")
+  ejecutar "$nodo" 90_desmontar_suscripciones.sql -v sub="$sub" -v slot_existe="$slot"
+}
+
 desmontar() {
   local c n
   info "Eliminando suscripciones del Nivel 2"
-  for c in "${CAMPUS[@]}"; do ejecutar "$c" 90_desmontar_suscripciones.sql; done
+  for c in "${CAMPUS[@]}"; do eliminar_suscripcion "$c" "sub_${c}_global" central; done
   info "Eliminando suscripciones del Nivel 1"
-  ejecutar central 90_desmontar_suscripciones.sql
+  for c in "${CAMPUS[@]}"; do eliminar_suscripcion central "sub_central_$c" "$c"; done
   info "Eliminando publicaciones y slots huérfanos"
   for n in "${NODOS[@]}"; do ejecutar "$n" 91_desmontar_publicaciones.sql; done
   info "Vaciando copias réplica (los esquemas propios no se tocan)"
