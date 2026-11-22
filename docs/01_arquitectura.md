@@ -148,6 +148,10 @@ Volúmenes por nodo: datos en volumen docker; `./wal_archive/<nodo>` y `./backup
   - En el central: `CREATE SUBSCRIPTION sub_central_X CONNECTION 'host=pg-X dbname=sigtec user=replicador password=…' PUBLICATION pub_X;`
   - En el central: `CREATE PUBLICATION pub_global_X FOR TABLES IN SCHEMA X;` (×5)
   - En cada campus X: **una** suscripción `sub_X_global` al central con las 4 `pub_global_*` que no son X.
+- **Las publicaciones y suscripciones se crean conectado como `postgres`** (`docker exec pg-X psql -U postgres -d sigtec`), en ambos lados:
+  - `CREATE PUBLICATION … FOR TABLES IN SCHEMA` exige superusuario en PG16.
+  - El dueño de la suscripción es quien aplica los cambios en las tablas réplica, y `replicador` solo tiene SELECT.
+  - `replicador` va **únicamente dentro de la cadena `CONNECTION`**: es el usuario con el que el suscriptor se conecta al nodo que publica y hace la copia inicial (`copy_data`). En ese lado necesita SELECT, y ya lo tiene.
 - Vistas: `capas.<capa_codigo>` = `UNION ALL` de los 5 esquemas, mismas columnas. QGIS usará `id` como clave (es global y única).
 - INSTEAD OF: si `campus_id` viene NULL usar `sig.fn_campus_local()`; si no coincide con `sig.fn_campus_local()` → `RAISE EXCEPTION`. Normalizar con `sig.fn_a_srid_institucional()`. Escribir en `sig.fn_esquema_local()`. En UPDATE/DELETE validar el `campus_id` de OLD. Función `SECURITY DEFINER`.
 - Permisos de vistas: SELECT a `sigtec_lectura`; INSERT/UPDATE/DELETE a `sigtec_editor`.

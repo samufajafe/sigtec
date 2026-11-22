@@ -13,9 +13,23 @@ DECLARE
   x   double precision;
   y   double precision;
 BEGIN
-  SELECT codigo, upper(left(codigo, 3)), ST_X(centro), ST_Y(centro)
+  -- Prefijo fijo por campus para los códigos de ejemplo (edificios, luminarias).
+  -- No se deriva del nombre: sanjose y sancarlos darían ambos "SAN".
+  SELECT codigo,
+         CASE codigo
+           WHEN 'cartago'   THEN 'CAR'
+           WHEN 'sanjose'   THEN 'SJO'
+           WHEN 'sancarlos' THEN 'SCA'
+           WHEN 'alajuela'  THEN 'ALA'
+           WHEN 'limon'     THEN 'LIM'
+         END,
+         ST_X(centro), ST_Y(centro)
     INTO e, pre, x, y
   FROM sig.campus WHERE campus_id = p_campus_id;
+
+  IF pre IS NULL THEN
+    RAISE EXCEPTION 'Campus % sin prefijo de datos de ejemplo', p_campus_id;
+  END IF;
 
   -- Edificios (rectángulos en metros, relativos al centro)
   EXECUTE format($q$
